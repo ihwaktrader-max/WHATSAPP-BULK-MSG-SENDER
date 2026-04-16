@@ -17,7 +17,6 @@ interface ContactTableProps {
 }
 
 export function ContactTable({ contacts, currentIndex }: ContactTableProps) {
-  if (contacts.length === 0) return null;
   const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,6 +29,8 @@ export function ContactTable({ contacts, currentIndex }: ContactTableProps) {
     }
   }, [currentIndex]);
 
+  if (contacts.length === 0) return null;
+
   return (
     <div className="bg-white h-full" ref={tableRef}>
       <Table>
@@ -38,6 +39,7 @@ export function ContactTable({ contacts, currentIndex }: ContactTableProps) {
             <TableHead className="w-[180px] text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Customer Name</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Phone Number</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Status</TableHead>
+            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Group</TableHead>
             <TableHead className="text-right text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Variables</TableHead>
           </TableRow>
         </TableHeader>
@@ -62,19 +64,28 @@ export function ContactTable({ contacts, currentIndex }: ContactTableProps) {
               <TableCell className="text-slate-600 py-4 font-mono text-xs">{contact.phone}</TableCell>
               <TableCell className="py-4">
                 {contact.status === 'pending' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#fff3cd] text-[#856404]">
-                    PENDING
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#fff3cd] text-[#856404] dark:bg-amber-900/30 dark:text-amber-400">
+                    <Clock className="w-3 h-3 mr-1" /> PENDING
                   </span>
                 )}
                 {contact.status === 'sent' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#dcf8c6] text-[#128c7e]">
-                    SENT
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#dcf8c6] text-[#128c7e] dark:bg-emerald-900/30 dark:text-emerald-400">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> SENT
                   </span>
                 )}
                 {contact.status === 'failed' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                    FAILED
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    <XCircle className="w-3 h-3 mr-1" /> FAILED
                   </span>
+                )}
+              </TableCell>
+              <TableCell className="py-4">
+                {contact.group ? (
+                  <Badge variant="outline" className="text-[9px] font-bold border-slate-200 dark:border-slate-700">
+                    {contact.group.toUpperCase()}
+                  </Badge>
+                ) : (
+                  <span className="text-[10px] text-slate-300">NONE</span>
                 )}
               </TableCell>
               <TableCell className="text-right py-4">

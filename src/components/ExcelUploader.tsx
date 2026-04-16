@@ -15,16 +15,18 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
   const [isMappingOpen, setIsMappingOpen] = useState(false);
   const [rawRows, setRawRows] = useState<any[][]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [mappings, setMappings] = useState({ name: '', phone: '' });
+  const [mappings, setMappings] = useState({ name: '', phone: '', group: '' });
 
-  const processRawData = (rows: any[][], headerIdx: number, nameCol: string, phoneCol: string) => {
+  const processRawData = (rows: any[][], headerIdx: number, nameCol: string, phoneCol: string, groupCol?: string) => {
     const dataRows = rows.slice(headerIdx + 1);
     const nameIdx = rows[headerIdx].indexOf(nameCol);
     const phoneIdx = rows[headerIdx].indexOf(phoneCol);
+    const groupIdx = groupCol ? rows[headerIdx].indexOf(groupCol) : -1;
 
     const contacts: Contact[] = dataRows.map((row, index) => {
       const phoneValue = String(row[phoneIdx] || '').trim();
       const nameValue = String(row[nameIdx] || 'Unknown').trim();
+      const groupValue = groupIdx !== -1 ? String(row[groupIdx] || '').trim() : '';
 
       if (!phoneValue && nameValue === 'Unknown') return null;
 
@@ -39,6 +41,7 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
         name: nameValue,
         phone: phoneValue,
         status: 'pending' as const,
+        group: groupValue,
         ...rowObj
       };
     }).filter((c): c is Contact => {
@@ -75,6 +78,7 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
         let maxMatches = 0;
         let detectedName = '';
         let detectedPhone = '';
+        let detectedGroup = '';
 
         for (let i = 0; i < Math.min(rows.length, 20); i++) {
           const row = rows[i];
@@ -83,6 +87,7 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
           let matches = 0;
           let currentName = '';
           let currentPhone = '';
+          let currentGroup = '';
 
           row.forEach((cell) => {
             const val = String(cell).toLowerCase().replace(/[^a-z]/g, '');
@@ -94,6 +99,10 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
               matches++;
               currentPhone = String(cell);
             }
+            if (val.includes('group') || val.includes('category') || val.includes('type') || val.includes('lead')) {
+              matches++;
+              currentGroup = String(cell);
+            }
             if (val.includes('srno') || val.includes('sno')) matches++;
           });
 
@@ -102,12 +111,13 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
             bestHeaderIdx = i;
             detectedName = currentName;
             detectedPhone = currentPhone;
+            detectedGroup = currentGroup;
           }
         }
 
         if (bestHeaderIdx !== -1 && detectedName && detectedPhone) {
           // Auto-process if we are confident
-          processRawData(rows, bestHeaderIdx, detectedName, detectedPhone);
+          processRawData(rows, bestHeaderIdx, detectedName, detectedPhone, detectedGroup);
           toast.success("Excel parsed automatically!");
         } else {
           // Show mapping dialog if unsure
@@ -117,7 +127,8 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
           setHeaders(potentialHeaders.map(h => String(h || 'Column')));
           setMappings({ 
             name: potentialHeaders.find(h => String(h).toLowerCase().includes('name')) || '',
-            phone: potentialHeaders.find(h => String(h).toLowerCase().includes('mobile') || String(h).toLowerCase().includes('phone')) || ''
+            phone: potentialHeaders.find(h => String(h).toLowerCase().includes('mobile') || String(h).toLowerCase().includes('phone')) || '',
+            group: potentialHeaders.find(h => String(h).toLowerCase().includes('group') || String(h).toLowerCase().includes('lead')) || ''
           });
           setIsMappingOpen(true);
         }
@@ -184,13 +195,25 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label className="text-right text-xs font-bold">Group (Opt)</label>
+              <Select value={mappings.group} onValueChange={(v) => setMappings(m => ({ ...m, group: v }))}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Group Column" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button 
               className="bg-whatsapp-green hover:bg-whatsapp-green/90"
               onClick={() => {
                 const headerIdx = rawRows.findIndex(r => r.includes(mappings.name) || r.includes(mappings.phone));
-                processRawData(rawRows, headerIdx === -1 ? 0 : headerIdx, mappings.name, mappings.phone);
+                processRawData(rawRows, headerIdx === -1 ? 0 : headerIdx, mappings.name, mappings.phone, mappings.group);
               }}
             >
               Confirm & Load
