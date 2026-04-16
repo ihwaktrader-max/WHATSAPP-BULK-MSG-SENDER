@@ -548,8 +548,8 @@ export default function App() {
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-whatsapp-green" /> Delivery Performance
                   </h4>
-                  <div className="h-[250px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[250px] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <BarChart data={dashboardData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#1e293b' : '#f1f5f9'} />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
@@ -569,8 +569,8 @@ export default function App() {
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Users className="w-4 h-4 text-blue-500" /> Lead Distribution
                   </h4>
-                  <div className="h-[250px] w-full flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[250px] w-full flex items-center justify-center min-w-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <PieChart>
                         <Pie
                           data={[
