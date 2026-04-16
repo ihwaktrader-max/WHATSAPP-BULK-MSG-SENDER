@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp Bulk Sender",
+  "description": "Upload Excel sheets, manage contacts, and send personalized template messages via WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
