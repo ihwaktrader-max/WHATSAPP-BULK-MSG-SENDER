@@ -9,12 +9,82 @@
   --color-whatsapp-dark: #128C7E;
   --color-app-bg: #f0f2f5;
   --color-border-muted: #e1e4e8;
+  --color-cyber-grid: rgba(37, 211, 102, 0.05);
 }
 
 @layer base {
   body {
-    @apply bg-app-bg text-[#1c1e21] antialiased;
+    @apply bg-app-bg text-[#1c1e21] antialiased overflow-hidden;
   }
+}
+
+.cyber-grid {
+  background-image: 
+    linear-gradient(var(--color-cyber-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-cyber-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.dark .cyber-grid {
+  --color-cyber-grid: rgba(37, 211, 102, 0.03);
+}
+
+.glass-panel {
+  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md;
+}
+
+.glow-whatsapp {
+  box-shadow: 0 0 15px rgba(37, 211, 102, 0.3);
+}
+
+.text-mono {
+  @apply font-mono tracking-tighter;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+.scanline {
+  width: 100%;
+  height: 100px;
+  z-index: 10;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(37, 211, 102, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0.1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100px); }
+  100% { transform: translateY(100vh); }
+}
+
+.border-neon {
+  box-shadow: 0 0 5px rgba(37, 211, 102, 0.2), inset 0 0 5px rgba(37, 211, 102, 0.1);
+}
+
+.text-glow-green {
+  text-shadow: 0 0 10px rgba(37, 211, 102, 0.5);
+}
+
+.stagger-item {
+  animation: slide-up 0.5s ease forwards;
+  opacity: 0;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 /* Custom scrollbar */

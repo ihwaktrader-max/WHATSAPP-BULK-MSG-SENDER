@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
+import { FileSpreadsheet, AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
 import { Contact } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,25 +14,23 @@ interface ExcelUploaderProps {
 export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
   const [isMappingOpen, setIsMappingOpen] = useState(false);
   const [rawRows, setRawRows] = useState<any[][]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [mappings, setMappings] = useState({ name: '', phone: '', group: '' });
+  const [headers, setHeaders] = useState<{label: string, index: number}[]>([]);
+  const [mappings, setMappings] = useState<{name: string, phone: string, group: string}>({ name: '', phone: '', group: '' });
 
-  const processRawData = (rows: any[][], headerIdx: number, nameCol: string, phoneCol: string, groupCol?: string) => {
+  const processRawData = (rows: any[][], headerIdx: number, nameColIdx: number, phoneColIdx: number, groupColIdx?: number) => {
     const dataRows = rows.slice(headerIdx + 1);
-    const nameIdx = rows[headerIdx].indexOf(nameCol);
-    const phoneIdx = rows[headerIdx].indexOf(phoneCol);
-    const groupIdx = groupCol ? rows[headerIdx].indexOf(groupCol) : -1;
-
+    
     const contacts: Contact[] = dataRows.map((row, index) => {
-      const phoneValue = String(row[phoneIdx] || '').trim();
-      const nameValue = String(row[nameIdx] || 'Unknown').trim();
-      const groupValue = groupIdx !== -1 ? String(row[groupIdx] || '').trim() : '';
+      const phoneValue = String(row[phoneColIdx] !== undefined ? row[phoneColIdx] : '').trim();
+      const nameValue = String(row[nameColIdx] !== undefined ? row[nameColIdx] : 'Unknown').trim();
+      const groupValue = groupColIdx !== undefined && groupColIdx !== -1 ? String(row[groupColIdx] || '').trim() : '';
 
       if (!phoneValue && nameValue === 'Unknown') return null;
 
       // Create a row object for variables
       const rowObj: any = {};
-      rows[headerIdx].forEach((h, i) => {
+      const headerRow = rows[headerIdx] || [];
+      headerRow.forEach((h, i) => {
         if (h) rowObj[String(h)] = row[i];
       });
 
@@ -54,10 +52,10 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
     setIsMappingOpen(false);
   };
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const onFileRead = (file: File) => {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -65,7 +63,6 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         if (rows.length === 0) {
@@ -103,7 +100,6 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
               matches++;
               currentGroup = String(cell);
             }
-            if (val.includes('srno') || val.includes('sno')) matches++;
           });
 
           if (matches > maxMatches) {
@@ -116,49 +112,84 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
         }
 
         if (bestHeaderIdx !== -1 && detectedName && detectedPhone) {
-          // Auto-process if we are confident
-          processRawData(rows, bestHeaderIdx, detectedName, detectedPhone, detectedGroup);
+          const nameIdx = rows[bestHeaderIdx].indexOf(detectedName);
+          const phoneIdx = rows[bestHeaderIdx].indexOf(detectedPhone);
+          const groupIdx = detectedGroup ? rows[bestHeaderIdx].indexOf(detectedGroup) : -1;
+          processRawData(rows, bestHeaderIdx, nameIdx, phoneIdx, groupIdx);
           toast.success("Excel parsed automatically!");
         } else {
-          // Show mapping dialog if unsure
-          const firstValidRowIdx = rows.findIndex(r => r && r.length > 1);
+          const firstValidRowIdx = Math.max(0, rows.findIndex(r => r && r.length > 0));
           const potentialHeaders = rows[firstValidRowIdx] || [];
           setRawRows(rows);
-          setHeaders(potentialHeaders.map(h => String(h || 'Column')));
-          setMappings({ 
-            name: potentialHeaders.find(h => String(h).toLowerCase().includes('name')) || '',
-            phone: potentialHeaders.find(h => String(h).toLowerCase().includes('mobile') || String(h).toLowerCase().includes('phone')) || '',
-            group: potentialHeaders.find(h => String(h).toLowerCase().includes('group') || String(h).toLowerCase().includes('lead')) || ''
-          });
+          const headerOptions = potentialHeaders.map((h, i) => ({ label: h ? String(h) : `Column ${i + 1}`, index: i }));
+          setHeaders(headerOptions);
+          const nIdx = headerOptions.findIndex(h => h.label.toLowerCase().includes('name'));
+          const pIdx = headerOptions.findIndex(h => h.label.toLowerCase().includes('mobile') || h.label.toLowerCase().includes('phone'));
+          const gIdx = headerOptions.findIndex(h => h.label.toLowerCase().includes('group') || h.label.toLowerCase().includes('lead'));
+          setMappings({ name: nIdx !== -1 ? nIdx.toString() : '', phone: pIdx !== -1 ? pIdx.toString() : '', group: gIdx !== -1 ? gIdx.toString() : '' });
           setIsMappingOpen(true);
         }
       } catch (error) {
-        console.error("Excel Parsing Error:", error);
-        toast.error("File read karne mein galti hui.");
+        toast.error("File read error.");
       }
     };
     reader.readAsArrayBuffer(file);
-    e.target.value = '';
-  }, [onContactsLoaded]);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onFileRead(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => setIsDragging(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) onFileRead(file);
+  };
 
   return (
     <>
-      <div className="p-6 border-2 border-dashed border-border-muted rounded-xl flex flex-col items-center justify-center space-y-4 bg-slate-50/50 hover:bg-slate-50 transition-all relative overflow-hidden group cursor-pointer">
-        <div className="bg-whatsapp-green/10 p-3 rounded-full group-hover:scale-110 transition-transform">
-          <FileSpreadsheet className="w-6 h-6 text-whatsapp-green" />
+      <div className="relative group">
+        <div 
+          className={`h-40 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all duration-500 relative overflow-hidden cursor-pointer ${
+            isDragging 
+              ? 'border-whatsapp-green bg-whatsapp-green/5 shadow-[0_0_20px_rgba(37,211,102,0.1)] scale-[1.02]' 
+              : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-black/40 shadow-sm'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {/* Cyber accents */}
+          <div className="absolute top-4 left-4 w-2 h-2 border-t-2 border-l-2 border-slate-300 dark:border-slate-700" />
+          <div className="absolute top-4 right-4 w-2 h-2 border-t-2 border-r-2 border-slate-300 dark:border-slate-700" />
+          <div className="absolute bottom-4 left-4 w-2 h-2 border-b-2 border-l-2 border-slate-300 dark:border-slate-700" />
+          <div className="absolute bottom-4 right-4 w-2 h-4 border-b-2 border-r-2 border-slate-300 dark:border-slate-700" />
+
+          <div className={`p-4 rounded-2xl transition-all duration-500 ${isDragging ? 'bg-whatsapp-green text-white shadow-[0_0_15px_#25D366]' : 'bg-white dark:bg-slate-900 text-slate-400 group-hover:text-whatsapp-green group-hover:scale-110 shadow-lg shadow-slate-900/5'}`}>
+            <Download className="w-6 h-6" />
+          </div>
+          <div className="text-center px-4">
+            <p className="text-[10px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-[0.2em]">Data Ingress</p>
+            <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">XLSX / CSV Protocol</p>
+          </div>
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx, .xls, .csv"
+            className="hidden" 
+          />
         </div>
-        <div className="text-center">
-          <h3 className="text-sm font-bold text-slate-700">Select Excel/CSV</h3>
-          <p className="text-[10px] text-slate-400 mt-1">
-            Drag & drop or click to browse
-          </p>
-        </div>
-        <input
-          type="file"
-          className="absolute inset-0 opacity-0 cursor-pointer"
-          accept=".xlsx, .xls, .csv"
-          onChange={handleFileUpload}
-        />
       </div>
 
       <Dialog open={isMappingOpen} onOpenChange={setIsMappingOpen}>
@@ -180,7 +211,7 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
                   <SelectValue placeholder="Select Name Column" />
                 </SelectTrigger>
                 <SelectContent>
-                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                  {headers.map(h => <SelectItem key={h.index} value={h.index.toString()}>{h.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -191,7 +222,7 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
                   <SelectValue placeholder="Select Phone Column" />
                 </SelectTrigger>
                 <SelectContent>
-                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                  {headers.map(h => <SelectItem key={h.index} value={h.index.toString()}>{h.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -202,8 +233,8 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
                   <SelectValue placeholder="Select Group Column" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                  <SelectItem value="-1">None</SelectItem>
+                  {headers.map(h => <SelectItem key={h.index} value={h.index.toString()}>{h.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -212,8 +243,18 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
             <Button 
               className="bg-whatsapp-green hover:bg-whatsapp-green/90"
               onClick={() => {
-                const headerIdx = rawRows.findIndex(r => r.includes(mappings.name) || r.includes(mappings.phone));
-                processRawData(rawRows, headerIdx === -1 ? 0 : headerIdx, mappings.name, mappings.phone, mappings.group);
+                const nIdx = parseInt(mappings.name);
+                const pIdx = parseInt(mappings.phone);
+                const gIdx = mappings.group ? parseInt(mappings.group) : -1;
+                
+                if (isNaN(nIdx) || isNaN(pIdx)) {
+                  toast.error("Name aur Phone columns select karein.");
+                  return;
+                }
+
+                // Header row is usually where we picked the headers from
+                const firstValidRowIdx = Math.max(0, rawRows.findIndex(r => r && r.length > 0));
+                processRawData(rawRows, firstValidRowIdx, nIdx, pIdx, gIdx);
               }}
             >
               Confirm & Load

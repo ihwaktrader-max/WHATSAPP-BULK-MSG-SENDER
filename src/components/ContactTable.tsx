@@ -32,70 +32,92 @@ export function ContactTable({ contacts, currentIndex }: ContactTableProps) {
   if (contacts.length === 0) return null;
 
   return (
-    <div className="bg-white h-full" ref={tableRef}>
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-slate-50 border-b-2 border-border-muted hover:bg-slate-50">
-            <TableHead className="w-[180px] text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Customer Name</TableHead>
-            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Phone Number</TableHead>
-            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Status</TableHead>
-            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Group</TableHead>
-            <TableHead className="text-right text-[10px] uppercase tracking-wider font-bold text-slate-400 py-4">Variables</TableHead>
+    <div className="h-full overflow-hidden flex flex-col" ref={tableRef}>
+      <Table className="border-collapse">
+        <TableHeader className="sticky top-0 z-10 glass-panel border-b border-slate-200 dark:border-slate-800">
+          <TableRow className="hover:bg-transparent border-none">
+            <TableHead className="w-[200px] text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 py-6 pl-8">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-1 bg-whatsapp-green" />
+                IDENTIFIER
+              </div>
+            </TableHead>
+            <TableHead className="text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 py-6">TELEMETRY_NODE</TableHead>
+            <TableHead className="text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 py-6">RELAY_STATUS</TableHead>
+            <TableHead className="text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 py-6">COLLECTIVE</TableHead>
+            <TableHead className="text-right text-[10px] uppercase tracking-[0.15em] font-black text-slate-400 py-6 pr-8">METADATA</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {contacts.map((contact, index) => (
             <TableRow 
               key={contact.id} 
-              className={`border-b border-border-muted transition-colors ${
+              className={`group transition-all border-b border-slate-100 dark:border-slate-800/50 ${
                 index === currentIndex 
-                  ? 'bg-whatsapp-green/5 ring-1 ring-inset ring-whatsapp-green/20' 
-                  : 'hover:bg-slate-50/50'
+                  ? 'bg-whatsapp-green/[0.03] dark:bg-whatsapp-green/[0.02]' 
+                  : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30'
               }`}
             >
-              <TableCell className="font-semibold text-slate-700 py-4">
-                <div className="flex items-center gap-2">
-                  {index === currentIndex && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
-                  )}
-                  {contact.name}
+              <TableCell className="py-6 pl-8">
+                <div className="flex items-center gap-3">
+                  <div className={`w-1 h-8 transition-all ${index === currentIndex ? 'bg-whatsapp-green' : 'bg-slate-100 dark:bg-slate-800'}`} />
+                  <div>
+                    <p className={`text-xs font-bold transition-colors ${index === currentIndex ? 'text-whatsapp-green' : 'text-slate-900 dark:text-slate-100'}`}>
+                      {contact.name.toUpperCase()}
+                    </p>
+                    <p className="text-[9px] font-mono text-slate-400">UID_{contact.id.substring(0, 8)}</p>
+                  </div>
                 </div>
               </TableCell>
-              <TableCell className="text-slate-600 py-4 font-mono text-xs">{contact.phone}</TableCell>
-              <TableCell className="py-4">
+              <TableCell className="py-6">
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400 tracking-tighter">
+                  {contact.phone}
+                </span>
+              </TableCell>
+              <TableCell className="py-6">
                 {contact.status === 'pending' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#fff3cd] text-[#856404] dark:bg-amber-900/30 dark:text-amber-400">
-                    <Clock className="w-3 h-3 mr-1" /> PENDING
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-amber-500" />
+                    </div>
+                    <span className="text-[9px] font-black tracking-widest text-amber-600/80 uppercase">STBY</span>
+                  </div>
                 )}
                 {contact.status === 'sent' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#dcf8c6] text-[#128c7e] dark:bg-emerald-900/30 dark:text-emerald-400">
-                    <CheckCircle2 className="w-3 h-3 mr-1" /> SENT
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green/20 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-whatsapp-green shadow-[0_0_8px_rgba(37,211,102,0.8)]" />
+                    </div>
+                    <span className="text-[9px] font-black tracking-widest text-whatsapp-green uppercase">SYNCED</span>
+                  </div>
                 )}
                 {contact.status === 'failed' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                    <XCircle className="w-3 h-3 mr-1" /> FAILED
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-red-500" />
+                    </div>
+                    <span className="text-[9px] font-black tracking-widest text-red-500 uppercase">ABORT</span>
+                  </div>
                 )}
               </TableCell>
-              <TableCell className="py-4">
+              <TableCell className="py-6">
                 {contact.group ? (
-                  <Badge variant="outline" className="text-[9px] font-bold border-slate-200 dark:border-slate-700">
+                  <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded tracking-tighter">
                     {contact.group.toUpperCase()}
-                  </Badge>
+                  </span>
                 ) : (
-                  <span className="text-[10px] text-slate-300">NONE</span>
+                  <span className="text-[9px] text-slate-300">-- NULL --</span>
                 )}
               </TableCell>
-              <TableCell className="text-right py-4">
-                <div className="flex flex-wrap justify-end gap-1">
+              <TableCell className="text-right py-6 pr-8">
+                <div className="flex justify-end gap-2">
                   {Object.keys(contact)
-                    .filter(k => !['id', 'name', 'phone', 'status'].includes(k))
+                    .filter(k => !['id', 'name', 'phone', 'status', 'group'].includes(k))
                     .map(k => (
-                      <span key={k} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                        {k}: {contact[k]}
-                      </span>
+                      <div key={k} className="flex flex-col items-end">
+                        <span className="text-[8px] font-black text-slate-300 uppercase leading-none">{k}</span>
+                        <span className="text-[10px] font-mono text-slate-500 leading-tight">{contact[k]}</span>
+                      </div>
                     ))}
                 </div>
               </TableCell>

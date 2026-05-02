@@ -62,22 +62,38 @@ export function TemplateEditor({ template, setTemplate, availableFields }: Templ
         
         <Textarea
           placeholder="Apna message yahan likhein..."
-          className="min-h-[150px] font-sans text-sm leading-relaxed border-border-muted focus-visible:ring-whatsapp-green dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+          className="min-h-[150px] font-mono text-[13px] tracking-tight leading-relaxed bg-slate-50 dark:bg-black border-slate-200 dark:border-slate-800 focus-visible:ring-whatsapp-green dark:text-slate-200 rounded-xl"
           value={template}
           onChange={(e) => setTemplate(e.target.value)}
         />
       </div>
 
       <div className="space-y-3">
-        <h4 className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Live Preview</h4>
-        <div className="bg-[#e5ddd5] dark:bg-slate-800 rounded-xl p-6 min-h-[200px] flex flex-col justify-end border border-slate-200 dark:border-slate-700">
-          <div className="whatsapp-bubble max-w-[90%] bg-white dark:bg-slate-900 p-3 rounded-lg shadow-sm">
-            <p className="whitespace-pre-wrap text-sm dark:text-slate-200">
+        <div className="flex items-center justify-between">
+          <h4 className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Node Output Preview</h4>
+          <span className="text-[9px] font-mono text-slate-400">ENCRYPTED_STREAM</span>
+        </div>
+        <div className="glass-panel dark:bg-black rounded-2xl p-6 min-h-[180px] flex flex-col justify-end border border-slate-200 dark:border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Layout className="w-20 h-20" />
+          </div>
+          <div className="whatsapp-bubble max-w-[90%] bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-xl shadow-slate-900/5 relative animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-2 mb-2 border-b border-slate-50 dark:border-slate-800 pb-2">
+              <div className="w-2 h-2 rounded-full bg-whatsapp-green shadow-[0_0_5px_#25D366]" />
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Secure Transmission</span>
+            </div>
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed dark:text-slate-200 font-medium">
               {template.length > 0 ? template.replace(/\{\{(\w+)\}\}/g, (match, p1) => {
-                return `[${p1}]`;
+                return `[${p1.toUpperCase()}]`;
               }) : 'Message preview yahan dikhega...'}
             </p>
-            <span className="text-[10px] text-slate-400 float-right mt-1">12:00 PM</span>
+            <div className="flex items-center justify-end gap-1.5 mt-3">
+              <span className="text-[9px] font-mono text-slate-400">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className="flex -space-x-1 opacity-50">
+                <div className="w-2 h-2 rounded-full border border-whatsapp-green" />
+                <div className="w-2 h-2 rounded-full border border-whatsapp-green" />
+              </div>
+            </div>
           </div>
         </div>
       </div>

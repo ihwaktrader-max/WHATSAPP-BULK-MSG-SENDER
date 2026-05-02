@@ -60,6 +60,17 @@ export default function App() {
   const [isHumanMode, setIsHumanMode] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<string>('All');
   const [activeTab, setActiveTab] = useState('campaign');
+  const [logs, setLogs] = useState<{id: string, time: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}[]>([]);
+
+  const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const newLog = {
+      id: Math.random().toString(36).substring(7),
+      time: format(new Date(), 'HH:mm:ss:SSS'),
+      message,
+      type
+    };
+    setLogs(prev => [newLog, ...prev].slice(0, 50));
+  };
 
   const autoSendTimer = useRef<NodeJS.Timeout | null>(null);
   const scheduleTimer = useRef<NodeJS.Timeout | null>(null);
@@ -129,6 +140,15 @@ export default function App() {
     return contacts.filter(c => c.group === selectedGroup);
   }, [contacts, selectedGroup]);
 
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setCurrentIndex(0);
+  }, [selectedGroup]);
+
   const stats = useMemo(() => {
     const total = contacts.length;
     const sent = contacts.filter(c => c.status === 'sent').length;
@@ -150,6 +170,7 @@ export default function App() {
   const handleContactsLoaded = (newContacts: Contact[]) => {
     setContacts(newContacts);
     setCurrentIndex(0);
+    addLog(`Ingested ${newContacts.length} nodes from dataset.`, 'success');
     toast.success(`${newContacts.length} contacts loaded successfully!`);
   };
 
@@ -159,6 +180,7 @@ export default function App() {
     setIsAutoSending(false);
     localStorage.removeItem('whatsapp_sync_contacts');
     localStorage.removeItem('whatsapp_sync_index');
+    addLog("System memory purged. All nodes disconnected.", 'warning');
     toast.info("Campaign cleared.");
   };
 
@@ -166,6 +188,7 @@ export default function App() {
     setCurrentIndex(0);
     const resetContacts = contacts.map(c => ({ ...c, status: 'pending' as const }));
     setContacts(resetContacts);
+    addLog("Sequence pointers reset to zero.", 'info');
     toast.info("Progress reset to start.");
   };
 
@@ -208,24 +231,25 @@ export default function App() {
   };
 
   const sendNext = () => {
-    if (currentIndex >= contacts.length) {
+    if (currentIndex >= filteredContacts.length) {
       setIsSending(false);
       setIsAutoSending(false);
       saveCampaignToHistory();
-      toast.success("All messages processed!");
+      toast.success("Current selection processed!");
       return;
     }
 
-    const contact = contacts[currentIndex];
+    const contact = filteredContacts[currentIndex];
     const uniqueSuffix = safetySuffix ? `\n\n[ID: ${Math.random().toString(36).substring(7)}]` : '';
     const message = replacePlaceholders(template, contact) + uniqueSuffix;
     
-    const encodedMessage = encodeURIComponent(message);
-    const link = `https://web.whatsapp.com/send?phone=${contact.phone}&text=${encodedMessage}`;
+    addLog(`Preparing transmission to ${contact.phone}...`, 'info');
+    
+    // Use the utility function for correct link generation and formatting
+    const link = generateWhatsAppLink(contact.phone, message);
 
-    const updatedContacts = [...contacts];
-    updatedContacts[currentIndex].status = 'sent';
-    setContacts(updatedContacts);
+    setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, status: 'sent' } : c));
+    addLog(`Relay established for ${contact.name}. Link generated.`, 'success');
 
     const wpWindow = window.open(link, 'whatsapp_sync_window');
     
@@ -276,10 +300,10 @@ export default function App() {
 
   useEffect(() => {
     if (isAutoSending) {
-      if (currentIndex < contacts.length) {
+      if (currentIndex < filteredContacts.length) {
         // Smart Delay Logic
         let baseDelay = delay;
-        if (contacts.length > 10) baseDelay = Math.max(baseDelay, 20000);
+        if (filteredContacts.length > 10) baseDelay = Math.max(baseDelay, 20000);
         
         // Human Mode: Add significant extra delay to simulate typing (5-10s)
         const humanDelay = isHumanMode ? (Math.random() * 5000) + 5000 : 0;
@@ -304,7 +328,7 @@ export default function App() {
     return () => {
       if (autoSendTimer.current) clearTimeout(autoSendTimer.current);
     };
-  }, [isAutoSending, currentIndex, contacts.length, delay, useRandomDelay]);
+  }, [isAutoSending, currentIndex, filteredContacts.length, delay, useRandomDelay, isHumanMode]);
 
   const toggleAutoSend = () => {
     if (contacts.length === 0) {
@@ -312,20 +336,24 @@ export default function App() {
       return;
     }
     if (!isAutoSending) {
+      addLog("Campaign engine initiated. Sequential processing enabled.", 'info');
       toast.info("Auto-Send starting... Make sure to allow popups!", {
         icon: <AlertTriangle className="text-amber-500" />,
       });
+    } else {
+      addLog("Processing suspended by user command.", 'warning');
     }
     setIsAutoSending(!isAutoSending);
     setIsSending(true);
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-app-bg">
+    <div className="h-screen flex flex-col overflow-hidden bg-app-bg cyber-grid relative">
+      <div className="scanline" />
       <Toaster position="top-right" richColors />
       
       {/* Header Area */}
-      <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0 z-20">
+      <header className="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 bg-slate-900 dark:bg-whatsapp-green rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/10">
             <MessageSquare className="w-5 h-5 text-white" />
@@ -450,26 +478,44 @@ export default function App() {
           </div>
 
           <div className="mt-auto space-y-4">
-            <Card className="p-5 border-slate-100 bg-slate-50/50 rounded-2xl">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Power User Insight</h4>
-              <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                "Keep the connected WhatsApp tab in a separate window to monitor delivery status in real-time."
-              </p>
-            </Card>
-            <div className="flex justify-between items-center px-2">
-              <span className="text-[10px] font-bold text-slate-300">WPSYNC KERNEL v1.2.4</span>
-              <div className="flex gap-2">
-                <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                <div className="w-1 h-1 bg-slate-200 rounded-full" />
+            <section className="space-y-3">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
+                System Terminal
+              </h4>
+              <div className="bg-slate-900 dark:bg-black rounded-xl p-3 h-[180px] overflow-y-auto space-y-1.5 font-mono text-[9px] border border-slate-800">
+                {logs.length > 0 ? logs.map(log => (
+                  <div key={log.id} className="flex gap-2">
+                    <span className="text-slate-500 shrink-0">[{log.time}]</span>
+                    <span className={
+                      log.type === 'success' ? 'text-whatsapp-green' :
+                      log.type === 'error' ? 'text-red-500' :
+                      log.type === 'warning' ? 'text-amber-500' :
+                      'text-slate-300'
+                    }>
+                      {log.message}
+                    </span>
+                  </div>
+                )) : (
+                  <p className="text-slate-600 italic">No activity detected.</p>
+                )}
+              </div>
+            </section>
+            
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[9px] font-bold text-slate-400">CORE_V_1.2.4</span>
+              <div className="flex gap-1.5">
+                <div className="w-1 h-1 bg-whatsapp-green rounded-full pulse-dot" />
+                <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                <div className="w-1 h-1 bg-slate-700 rounded-full" />
               </div>
             </div>
           </div>
         </aside>
 
         {/* Center: Workspace */}
-        <main className="bg-slate-50/50 dark:bg-slate-950 overflow-hidden flex flex-col p-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-2xl shadow-slate-200/20 dark:shadow-none">
+        <main className="bg-transparent overflow-hidden flex flex-col p-8 z-10">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden glass-panel rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-2xl shadow-slate-200/20 dark:shadow-none">
             <div className="px-8 h-16 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
               <TabsList className="bg-transparent gap-10 h-full p-0">
                 <TabsTrigger value="campaign" className="h-full text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all">
@@ -525,62 +571,92 @@ export default function App() {
 
             <TabsContent value="dashboard" className="flex-1 overflow-auto outline-none m-0 p-8 space-y-8">
               <div className="grid grid-cols-4 gap-6">
-                <Card className="p-6 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-3xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Sent</p>
-                  <p className="text-3xl font-black text-slate-900 dark:text-white">{campaignHistory.reduce((acc, c) => acc + c.sent, 0) + stats.sent}</p>
+                <Card className="p-6 border-slate-200/60 dark:border-slate-800 glass-panel rounded-3xl group hover:border-whatsapp-green/50 transition-all stagger-item shadow-xl shadow-slate-900/5" style={{ animationDelay: '0.1s' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Data_Relayed</p>
+                    <Send className="w-3 h-3 text-whatsapp-green opacity-30 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+                    {campaignHistory.reduce((acc, c) => acc + c.sent, 0) + stats.sent}
+                    <span className="text-[10px] font-mono text-slate-400 ml-2">PKG</span>
+                  </p>
                 </Card>
-                <Card className="p-6 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-3xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Campaigns</p>
-                  <p className="text-3xl font-black text-slate-900 dark:text-white">{campaignHistory.length + (contacts.length > 0 ? 1 : 0)}</p>
+                <Card className="p-6 border-slate-200/60 dark:border-slate-800 glass-panel rounded-3xl group hover:border-blue-500/50 transition-all stagger-item shadow-xl shadow-slate-900/5" style={{ animationDelay: '0.2s' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Campaign_Cycles</p>
+                    <History className="w-3 h-3 text-blue-500 opacity-30 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+                    {campaignHistory.length + (contacts.length > 0 ? 1 : 0)}
+                    <span className="text-[10px] font-mono text-slate-400 ml-2">OPS</span>
+                  </p>
                 </Card>
-                <Card className="p-6 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-3xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Success Rate</p>
-                  <p className="text-3xl font-black text-whatsapp-green">98.2%</p>
+                <Card className="p-6 border-slate-200/60 dark:border-slate-800 glass-panel rounded-3xl group hover:border-whatsapp-green/50 transition-all stagger-item shadow-xl shadow-slate-900/5" style={{ animationDelay: '0.3s' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Efficiency_Rate</p>
+                    <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green pulse-dot" />
+                  </div>
+                  <p className="text-3xl font-black text-whatsapp-green tracking-tighter">98.2%</p>
                 </Card>
-                <Card className="p-6 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-3xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Leads</p>
-                  <p className="text-3xl font-black text-blue-500">{contacts.length}</p>
+                <Card className="p-6 border-slate-200/60 dark:border-slate-800 glass-panel rounded-3xl group hover:border-blue-500/50 transition-all stagger-item shadow-xl shadow-slate-900/5" style={{ animationDelay: '0.4s' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Live_Nodes</p>
+                    <Users className="w-3 h-3 text-blue-500 opacity-30 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-3xl font-black text-blue-500 tracking-tighter">{contacts.length}</p>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-2 gap-8">
-                <Card className="p-8 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-[2.5rem] space-y-6">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-whatsapp-green" /> Delivery Performance
-                  </h4>
-                  <div className="h-[250px] w-full min-w-0">
+              <div className="grid grid-cols-[1.5fr_1fr] gap-8">
+                <Card className="p-10 border-slate-200/60 dark:border-slate-800 glass-panel rounded-[2.5rem] space-y-8 stagger-item shadow-2xl shadow-slate-900/5" style={{ animationDelay: '0.5s' }}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+                      <BarChart3 className="w-5 h-5 text-whatsapp-green" /> Transmission_Telemetry
+                    </h4>
+                    <span className="text-[9px] font-mono text-slate-400 tracking-tighter">REAL_TIME_SEQUENTIAL_DATA</span>
+                  </div>
+                  <div className="h-[300px] w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <BarChart data={dashboardData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#1e293b' : '#f1f5f9'} />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
+                        <defs>
+                          <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#25D366" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#25D366" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? 'rgba(255,255,255,0.05)' : '#f1f5f9'} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#94a3b8', fontStyle: 'italic'}} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 9, fill: '#94a3b8'}} />
                         <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#0f172a' : '#fff' }}
-                          itemStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                          contentStyle={{ borderRadius: '16px', border: 'none', padding: '12px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#000' : '#fff' }}
+                          itemStyle={{ fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase' }}
+                          cursor={{fill: 'rgba(37,211,102,0.05)'}}
                         />
-                        <Bar dataKey="sent" fill="#25D366" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="failed" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="sent" fill="url(#colorSent)" radius={[6, 6, 0, 0]} barSize={40} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </Card>
 
-                <Card className="p-8 border-slate-100 dark:border-slate-800 dark:bg-slate-900/50 rounded-[2.5rem] space-y-6">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-500" /> Lead Distribution
-                  </h4>
-                  <div className="h-[250px] w-full flex items-center justify-center min-w-0">
+                <Card className="p-10 border-slate-200/60 dark:border-slate-800 glass-panel rounded-[2.5rem] space-y-8 stagger-item shadow-2xl shadow-slate-900/5" style={{ animationDelay: '0.6s' }}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+                      <Users className="w-5 h-5 text-blue-500" /> Sector_Allocation
+                    </h4>
+                  </div>
+                  <div className="h-[300px] w-full flex items-center justify-center min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <PieChart>
                         <Pie
                           data={[
-                            { name: 'Sent', value: stats.sent },
-                            { name: 'Pending', value: stats.pending },
-                            { name: 'Failed', value: stats.failed }
+                            { name: 'SENT', value: stats.sent },
+                            { name: 'PENDING', value: stats.pending },
+                            { name: 'FAILED', value: stats.failed }
                           ]}
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
+                          innerRadius={70}
+                          outerRadius={100}
+                          paddingAngle={8}
+                          stroke="none"
                           dataKey="value"
                         >
                           <Cell fill="#25D366" />
@@ -588,7 +664,7 @@ export default function App() {
                           <Cell fill="#ef4444" />
                         </Pie>
                         <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: darkMode ? '#0f172a' : '#fff' }}
+                          contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: darkMode ? '#000' : '#fff' }}
                         />
                       </PieChart>
                     </ResponsiveContainer>
@@ -767,6 +843,7 @@ export default function App() {
                 variant="outline"
                 className={`h-14 font-black text-[11px] tracking-widest transition-all rounded-2xl border-2 ${isAutoSending ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900' : 'border-slate-900 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-900 dark:hover:bg-slate-800 hover:text-white shadow-lg shadow-slate-900/5'}`}
                 onClick={toggleAutoSend}
+                disabled={filteredContacts.length === 0}
               >
                 {isAutoSending ? (
                   <><Pause className="w-4 h-4 mr-2" /> STOP</>
@@ -777,6 +854,7 @@ export default function App() {
               <Button 
                 className="h-14 font-black text-[11px] tracking-widest bg-whatsapp-green hover:bg-[#1ebe5d] text-white shadow-xl shadow-whatsapp-green/20 rounded-2xl flex-1"
                 onClick={sendNext}
+                disabled={filteredContacts.length === 0 || isAutoSending}
               >
                 <Send className="w-4 h-4 mr-2" /> NEXT
               </Button>
