@@ -1,14 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { FileSpreadsheet, AlertCircle, CheckCircle2, ChevronRight, Download } from 'lucide-react';
-import { Contact } from '@/lib/whatsapp';
+import { Contact, validatePhoneNumber, ValidationReport } from '@/lib/whatsapp';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ExcelUploaderProps {
-  onContactsLoaded: (contacts: Contact[]) => void;
+  onContactsLoaded: (contacts: Contact[], report: ValidationReport) => void;
 }
 
 export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
@@ -20,35 +20,61 @@ export function ExcelUploader({ onContactsLoaded }: ExcelUploaderProps) {
   const processRawData = (rows: any[][], headerIdx: number, nameColIdx: number, phoneColIdx: number, groupColIdx?: number) => {
     const dataRows = rows.slice(headerIdx + 1);
     
-    const contacts: Contact[] = dataRows.map((row, index) => {
+    const validContacts: Contact[] = [];
+    const seenPhones = new Set<string>();
+    const report: ValidationReport = {
+      total: dataRows.length,
+      valid: 0,
+      duplicates: 0,
+      invalid: 0,
+      invalidEntries: []
+    };
+
+    dataRows.forEach((row, index) => {
       const phoneValue = String(row[phoneColIdx] !== undefined ? row[phoneColIdx] : '').trim();
       const nameValue = String(row[nameColIdx] !== undefined ? row[nameColIdx] : 'Unknown').trim();
       const groupValue = groupColIdx !== undefined && groupColIdx !== -1 ? String(row[groupColIdx] || '').trim() : '';
 
-      if (!phoneValue && nameValue === 'Unknown') return null;
+      // Validation
+      const validation = validatePhoneNumber(phoneValue);
+      
+      if (!validation.valid) {
+        if (phoneValue || nameValue !== 'Unknown') {
+          report.invalid++;
+          report.invalidEntries.push({ phone: phoneValue, name: nameValue, reason: validation.reason || 'Invalid format' });
+        }
+        return;
+      }
 
-      // Create a row object for variables
+      const formattedPhone = validation.formatted;
+
+      // Duplicate Check
+      if (seenPhones.has(formattedPhone)) {
+        report.duplicates++;
+        return;
+      }
+
+      // Success
+      seenPhones.add(formattedPhone);
+      report.valid++;
+
       const rowObj: any = {};
       const headerRow = rows[headerIdx] || [];
       headerRow.forEach((h, i) => {
         if (h) rowObj[String(h)] = row[i];
       });
 
-      return {
+      validContacts.push({
         id: `contact-${index}-${Date.now()}`,
         name: nameValue,
-        phone: phoneValue,
+        phone: formattedPhone, // Save the validated/formatted version
         status: 'pending' as const,
         group: groupValue,
         ...rowObj
-      };
-    }).filter((c): c is Contact => {
-      if (!c) return false;
-      const cleanPhone = c.phone.replace(/\D/g, '');
-      return cleanPhone.length >= 10;
+      });
     });
 
-    onContactsLoaded(contacts);
+    onContactsLoaded(validContacts, report);
     setIsMappingOpen(false);
   };
 

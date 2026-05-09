@@ -46,18 +46,19 @@ export function TemplateEditor({ template, setTemplate, availableFields }: Templ
 
         <div className="flex items-center justify-between">
           <h4 className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">Message Content</h4>
-          <div className="flex flex-wrap gap-1.5">
-            {availableFields.map(field => (
-              <Badge 
-                key={field} 
-                variant="secondary" 
-                className="cursor-pointer text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 hover:bg-whatsapp-green hover:text-white transition-colors border-none"
-                onClick={() => addPlaceholder(field)}
-              >
-                {field}
-              </Badge>
-            ))}
-          </div>
+          <span className="text-[10px] font-mono font-black text-slate-400">{template.length} CHARS</span>
+        </div>
+        
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {availableFields.map(field => (
+            <button 
+              key={field} 
+              className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-whatsapp-green hover:text-whatsapp-green transition-all shadow-sm active:scale-95"
+              onClick={() => addPlaceholder(field)}
+            >
+              +{field}
+            </button>
+          ))}
         </div>
         
         <Textarea
