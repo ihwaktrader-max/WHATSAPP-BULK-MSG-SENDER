@@ -25,12 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  MessageSquare, Send, Trash2, Users, LayoutDashboard, Settings, 
-  Play, Pause, AlertTriangle, Info, HelpCircle, ExternalLink, 
-  CheckCircle2, Moon, Sun, History, BarChart3, Calendar as CalendarIcon,
-  Paperclip, Download, Filter, UserCheck, UserPlus, Clock, Sparkles, Layers
-} from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,8 +41,39 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import * as XLSX from 'xlsx';
+import { authService } from '@/lib/auth';
+import { LoginPage } from '@/components/LoginPage';
+import { AdminSystem } from '@/components/AdminSystem';
+import { User } from '@/types';
+import { 
+  MessageSquare, Send, Trash2, Users, LayoutDashboard, Settings, 
+  Play, Pause, AlertTriangle, Info, HelpCircle, ExternalLink, 
+  CheckCircle2, Moon, Sun, History, BarChart3, Calendar as CalendarIcon,
+  Paperclip, Download, Filter, UserCheck, UserPlus, Clock, Sparkles, Layers,
+  LogOut, ShieldCheck
+} from 'lucide-react';
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [systemSettings, setSystemSettings] = useState(authService.getSettings());
+
+  // Auth Check
+  useEffect(() => {
+    const auth = authService.getAuth();
+    if (auth.isAuthenticated) {
+      setUser(auth.user);
+    }
+    setSystemSettings(authService.getSettings());
+    setIsAuthLoading(false);
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+    setUser(null);
+    toast.info("Logged out successfully");
+  };
+
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [template, setTemplate] = useState("Hello {{Name}},\n\nThis is a test message from our WhatsApp Bulk Sender tool.");
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -339,6 +364,11 @@ export default function App() {
       status: 'completed'
     };
     setCampaignHistory([newCampaign, ...campaignHistory]);
+    
+    // Track usage for the current operator
+    if (user && user.email) {
+      authService.incrementUserMessages(user.email, stats.sent);
+    }
   };
 
   const exportReport = () => {
@@ -573,6 +603,20 @@ export default function App() {
     }
     
     if (!isAutoSending) {
+      // Check usage limits for users
+      if (user?.role === 'user') {
+        const fullUser = authService.findUserByEmail(user.email);
+        const today = new Date().toISOString().split('T')[0];
+        const messagesToday = (fullUser.history || [])
+          .filter((h: any) => h.timestamp.startsWith(today))
+          .reduce((acc: number, h: any) => acc + h.recipientCount, 0);
+        
+        if (messagesToday + contacts.length > systemSettings.maxMessagesPerUser) {
+          toast.error(`Daily limit exceeded! Max ${systemSettings.maxMessagesPerUser} messages per day. You have already sent ${messagesToday} today.`);
+          return;
+        }
+      }
+
       setIsAutoSending(true);
       setIsPaused(false);
       addLog("Campaign engine initiated. Sequential processing enabled.", 'info');
@@ -589,20 +633,39 @@ export default function App() {
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="w-16 h-16 border-4 border-whatsapp-green border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <LoginPage onLoginSuccess={setUser} />
+        <Toaster position="top-center" richColors closeButton />
+      </>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-app-bg cyber-grid relative">
       <div className="scanline" />
       <Toaster position="top-center" expand={true} richColors closeButton />
       
       {/* Header Area */}
-      <header className="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0 z-20">
+      <header className="h-16 glass-panel border-b border-border bg-white/80 dark:bg-card/80 backdrop-blur-md flex items-center justify-between px-4 md:px-8 shrink-0 z-20">
         <div className="flex items-center gap-3 md:gap-4">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-900 dark:bg-whatsapp-green rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/10">
+          <div className="w-8 h-8 md:w-10 md:h-10 bg-slate-900 dark:bg-whatsapp-green rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/10 transition-transform hover:scale-105 active:scale-95">
             <MessageSquare className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xs md:text-sm font-bold text-slate-900 dark:text-white tracking-tight">WPSync <span className="text-whatsapp-green md:inline hidden">Pro</span></h1>
-            <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Enterprise Dashboard</p>
+            <h1 className="text-xs md:text-sm font-black text-slate-900 dark:text-white tracking-tight uppercase">{systemSettings.appName}</h1>
+            <p className="text-[8px] md:text-[10px] font-black text-slate-400 dark:text-muted-foreground uppercase tracking-widest leading-none">
+              {user.role === 'admin' ? 'SYSTEM OVERLORD' : 'OPERATOR'} ACCESS
+            </p>
           </div>
         </div>
 
@@ -611,12 +674,19 @@ export default function App() {
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 bg-green-500 rounded-full" /> API ACTIVE
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" /> SYNC READY
-            </div>
+            {user.role === 'admin' && (
+              <div className="flex items-center gap-1.5 text-whatsapp-green bg-whatsapp-green/5 px-2 py-0.5 rounded border border-whatsapp-green/20">
+                <ShieldCheck className="w-3 h-3" /> ADMIN MODE
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <div className="w-2 h-2 bg-whatsapp-green rounded-full shadow-[0_0_8px_rgba(37,211,102,0.6)]" />
+              <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">{user.name}</span>
+            </div>
+            
             <Button 
               size="icon" 
               variant="ghost" 
@@ -625,27 +695,28 @@ export default function App() {
             >
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </Button>
+
             <Button 
-              size="sm" 
-              variant="outline" 
-              className="h-8 md:h-9 px-3 md:px-4 font-bold text-[10px] md:text-[11px] border-whatsapp-green text-whatsapp-green hover:bg-whatsapp-green hover:text-white rounded-lg shadow-sm"
-              onClick={connectWhatsApp}
+              size="icon" 
+              variant="ghost" 
+              className="w-8 h-8 md:w-9 md:h-9 rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10"
+              onClick={handleLogout}
             >
-              <ExternalLink className="w-3 md:w-3.5 h-3 md:h-3.5 mr-1 md:mr-2" /> <span className="hidden sm:inline">CONNECT WHATSAPP</span><span className="sm:hidden">CONNECT</span>
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </header>
 
       {/* Main Grid Layout */}
-      <div className="flex-1 flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr_360px] gap-0 bg-slate-50/50 dark:bg-slate-950 overflow-hidden pb-20 md:pb-0">
+      <div className="flex-1 flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr_360px] gap-0 bg-slate-50/50 dark:bg-background overflow-hidden pb-20 md:pb-0">
         
         {/* Left Sidebar: Control Center */}
-        <aside className="hidden md:flex bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-6 md:p-8 flex-col gap-6 md:gap-10 overflow-y-auto">
+        <aside className="hidden md:flex bg-white dark:bg-card border-r border-border p-6 md:p-8 flex-col gap-6 md:gap-10 overflow-y-auto custom-scrollbar">
           <div className="space-y-8">
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Data Ingestion</h3>
+                <h3 className="text-[11px] uppercase tracking-widest font-black text-slate-400 dark:text-muted-foreground">Data Ingestion</h3>
                 <div className="w-1.5 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
               </div>
               <ExcelUploader onContactsLoaded={handleContactsLoaded} />
@@ -837,9 +908,11 @@ export default function App() {
                 <TabsTrigger value="campaign" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
                   Registry
                 </TabsTrigger>
-                <TabsTrigger value="dashboard" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
-                  Dashboard
-                </TabsTrigger>
+                {user.role === 'admin' && (
+                  <TabsTrigger value="dashboard" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
+                    Dashboard
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="history" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
                   History
                 </TabsTrigger>
@@ -852,6 +925,11 @@ export default function App() {
                 <TabsTrigger value="guide" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
                   KB
                 </TabsTrigger>
+                {user.role === 'admin' && (
+                  <TabsTrigger value="users" className="h-full text-[10px] md:text-[11px] font-black tracking-widest uppercase data-[state=active]:text-slate-900 dark:data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-whatsapp-green rounded-none px-0 bg-transparent shadow-none border-b-2 border-transparent transition-all whitespace-nowrap">
+                    Users
+                  </TabsTrigger>
+                )}
               </TabsList>
               <div className="hidden sm:flex items-center gap-2">
                 {activeTab === 'campaign' && groups.length > 1 && (
@@ -1200,6 +1278,11 @@ export default function App() {
                 </section>
               </div>
             </TabsContent>
+            <TabsContent value="users" className="flex-1 overflow-auto outline-none m-0 p-8">
+              <div className="max-w-5xl mx-auto">
+                <AdminSystem />
+              </div>
+            </TabsContent>
           </Tabs>
         </main>
 
@@ -1347,9 +1430,10 @@ export default function App() {
           {[
             { id: 'campaign', icon: LayoutDashboard, label: 'Home' },
             { id: 'templates', icon: Layers, label: 'Library' },
-            { id: 'dashboard', icon: BarChart3, label: 'Analytics' },
+            ...(user.role === 'admin' ? [{ id: 'dashboard', icon: BarChart3, label: 'Analytics' }] : []),
             { id: 'scheduled', icon: Clock, label: 'Schedule' },
             { id: 'guide', icon: HelpCircle, label: 'Support' },
+            ...(user.role === 'admin' ? [{ id: 'users', icon: UserCheck, label: 'Users' }] : []),
           ].map((tab) => (
             <button
               key={tab.id}
